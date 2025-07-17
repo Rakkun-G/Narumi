@@ -122,9 +122,10 @@ async def on_message(message):
         except Exception as e:
             print(f"❌ Error crítico durante la destrucción: {e}")
 
-        return
+        return  # 👈 Muy importante para que no siga procesando más cosas
 
-       memoria = cargar_memoria()
+    # 🔧 Mover esto FUERA del if de arriba
+    memoria = cargar_memoria()
     guild_id = str(message.guild.id)
     if guild_id not in memoria:
         memoria[guild_id] = {"mensajes": []}
@@ -143,7 +144,6 @@ async def on_message(message):
         if esta_activo():
             respuesta = await generar_respuesta(memoria[guild_id]["mensajes"])
 
-            # 👉 Fragmentar si excede los 2000 caracteres
             if len(respuesta) > 2000:
                 for i in range(0, len(respuesta), 2000):
                     await message.channel.send(respuesta[i:i+2000])
