@@ -124,14 +124,14 @@ async def on_message(message):
 
         return
 
-    memoria = cargar_memoria()
+       memoria = cargar_memoria()
     guild_id = str(message.guild.id)
     if guild_id not in memoria:
         memoria[guild_id] = {"mensajes": []}
 
     memoria[guild_id]["mensajes"].append(message.content)
     if len(memoria[guild_id]["mensajes"]) > 20:
-    memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
+        memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
 
     guardar_memoria(memoria)
 
