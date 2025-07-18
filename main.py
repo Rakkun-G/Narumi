@@ -85,8 +85,8 @@ async def generar_respuesta(mensajes):
             return data["choices"][0]["message"]["content"].strip()
 
     except Exception as e:
-        print("Error al generar respuesta:", e)
-        return "Uy, se ve que algo salió mal 🤧."
+    print("❌ Error al generar respuesta:", e)
+    return f"⚠️ Ocurrió un error: {e}"
 
 # Evento cuando el bot se conecta
 @bot.event
