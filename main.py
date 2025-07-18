@@ -61,7 +61,7 @@ async def generar_respuesta(mensajes):
         }
 
         payload = {
-            "model": "qwen/qwen3-235b-a22b:free",
+            "model": "cognitivecomputations/dolphin3.0-mistral-24b:free",
             "messages": [
                 {"role": "system", "content": "Sos un bot de Discord con personalidad amable, graciosa y empática. Respondés en español con humor ligero y respeto."}
             ] + [{"role": "user", "content": msg} for msg in mensajes]
