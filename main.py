@@ -48,44 +48,53 @@ def esta_activo():
     ahora = datetime.now(timezone("America/Argentina/Buenos_Aires"))
     return 8 <= ahora.hour or ahora.hour < 3
 
-# Generar respuesta usando OpenRouter
-async def generar_respuesta(mensajes):
+# Generar respuesta usando OpenRouter con reintentos y timeout aumentado
+async def generar_respuesta(mensajes, intentos=3):
     global bloqueado_por_limite
-    try:
-        headers = {
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://tubotdiscord.com",
-            "X-Title": "BotNarumi"
-        }
+    for intento in range(intentos):
+        try:
+            headers = {
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://tubotdiscord.com",
+                "X-Title": "BotNarumi"
+            }
 
-        payload = {
-            "model": "qwen/qwen3-235b-a22b:free",
-            "messages": [
-                {"role": "system", "content": "Sos un bot de Discord con personalidad amable, graciosa y empática. Respondés en español con humor ligero y respeto."}
-            ] + [{"role": "user", "content": msg} for msg in mensajes]
-        }
+            payload = {
+                "model": "qwen/qwen3-235b-a22b:free",
+                "messages": [
+                    {"role": "system", "content": "Sos un bot de Discord con personalidad amable, graciosa y empática. Respondés en español con humor ligero y respeto."}
+                ] + [{"role": "user", "content": msg} for msg in mensajes]
+            }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
-            print("Respuesta bruta:", response.text)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=60  # timeout aumentado
+                )
+                print("Respuesta bruta:", response.text)
 
-            if response.status_code == 429:
-                bloqueado_por_limite = True
-                return "⚠️ Límite diario alcanzado."
+                if response.status_code == 429:
+                    bloqueado_por_limite = True
+                    return "⚠️ Límite diario alcanzado."
 
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"].strip()
 
-    except Exception as e:
-        print("❌ Error al generar respuesta:", e)
-        return f"⚠️ Ocurrió un error: {e}"
+        except httpx.RequestError as e:
+            print(f"⚠️ Intento {intento+1} falló: {e}")
+            if intento < intentos - 1:
+                await asyncio.sleep(2)  # espera antes de reintentar
+                continue
+            else:
+                return f"⚠️ Error: no se pudo conectar a la API después de {intentos} intentos."
+
+        except Exception as e:
+            print(f"❌ Error al generar respuesta: {e}")
+            return f"⚠️ Ocurrió un error: {e}"
 
 # Evento cuando el bot se conecta
 @bot.event
