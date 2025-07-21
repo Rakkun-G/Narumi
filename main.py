@@ -23,7 +23,6 @@ bloqueado_por_limite = False
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
-intents.messages = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -56,7 +55,7 @@ async def generar_respuesta(mensajes):
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://tubotdiscord.com",  # Reemplazalo si tenés otro link propio
+            "HTTP-Referer": "https://tubotdiscord.com",
             "X-Title": "BotNarumi"
         }
 
@@ -85,10 +84,16 @@ async def generar_respuesta(mensajes):
             return data["choices"][0]["message"]["content"].strip()
 
     except Exception as e:
-       print("❌ Error al generar respuesta:", e)
-       return f"⚠️ Ocurrió un error: {e}"
+        print("❌ Error al generar respuesta:", e)
+        return f"⚠️ Ocurrió un error: {e}"
 
 # Evento cuando el bot se conecta
+@bot.event
+async def on_ready():
+    print(f"✅ Bot conectado como {bot.user}")
+    hablar_automaticamente.start()
+    resetear_limite.start()
+
 @bot.event
 async def on_message(message):
     try:
@@ -131,19 +136,14 @@ async def on_message(message):
             memoria[guild_id] = {"mensajes": []}
 
         memoria[guild_id]["mensajes"].append(message.content)
-        if len(memoria[guild_id]["mensajes"]) > 20:
-            memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
+        memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]  # siempre recorta a 20
 
         guardar_memoria(memoria)
 
-        if bot.user in message.mentions or (
-            message.reference and
-            message.reference.resolved and
-            message.reference.resolved.author == bot.user
-        ):
+        referenciado = getattr(message.reference, "resolved", None)
+        if bot.user in message.mentions or (referenciado and referenciado.author == bot.user):
             if esta_activo():
                 respuesta = await generar_respuesta(memoria[guild_id]["mensajes"])
-
                 if len(respuesta) > 2000:
                     for i in range(0, len(respuesta), 2000):
                         await message.channel.send(respuesta[i:i+2000])
@@ -154,7 +154,6 @@ async def on_message(message):
 
     except Exception as err:
         print(f"🚨 Error en on_message: {err}")
-
 
 # Tarea: hablar solo cada 2 horas
 @tasks.loop(hours=2)
@@ -174,15 +173,15 @@ async def hablar_automaticamente():
             memoria[guild_id] = {"mensajes": []}
         mensajes = memoria[guild_id]["mensajes"]
 
-        CANAL_DESTINO_ID = 1327837491746832568  # Canal fijo por ID
+        CANAL_DESTINO_ID = 1327837491746832568
         canal = bot.get_channel(CANAL_DESTINO_ID)
 
         if canal and canal.permissions_for(canal.guild.me).send_messages:
             respuesta = await generar_respuesta(mensajes)
             try:
                 await canal.send(respuesta)
-            except:
-                pass
+            except Exception as e:
+                print(f"❌ No se pudo enviar mensaje automático: {e}")
 
     guardar_memoria(memoria)
 
