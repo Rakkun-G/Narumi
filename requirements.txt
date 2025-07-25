@@ -4,3 +4,4 @@ httpx
 flask
 pytz
 youtube_dl
+yt_dlp
