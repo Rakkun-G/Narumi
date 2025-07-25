@@ -3,3 +3,4 @@ python-dotenv
 httpx
 flask
 pytz
+youtube_dl
